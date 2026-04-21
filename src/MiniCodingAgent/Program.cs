@@ -33,8 +33,9 @@ static int Run(string[] args)
         return 0;
     }
 
-    var agent = BuildAgent(options);
-    Console.WriteLine(WelcomeBanner.Build(agent, options.Model, options.Host, terminalWidth: TryGetTerminalWidth()));
+    var host = options.Host ?? options.Backend.DefaultHost();
+    var agent = BuildAgent(options, host);
+    Console.WriteLine(WelcomeBanner.Build(agent, options.Model, host, terminalWidth: TryGetTerminalWidth()));
 
     if (!string.IsNullOrWhiteSpace(options.Prompt))
     {
@@ -54,16 +55,27 @@ static int Run(string[] args)
     return InteractiveRepl.Run(agent);
 }
 
-static MiniAgent BuildAgent(CliOptions options)
+static MiniAgent BuildAgent(CliOptions options, string host)
 {
     var workspace = new WorkspaceContextBuilder().Build(options.Cwd);
     var store = new SessionStore(Path.Combine(workspace.RepoRoot, ".mini-coding-agent", "sessions"));
-    var model = new OllamaModelClient(new OllamaOptions(
-        Model: options.Model,
-        Host: options.Host,
-        Temperature: options.Temperature,
-        TopP: options.TopP,
-        Timeout: TimeSpan.FromSeconds(options.OllamaTimeoutSeconds)));
+    var timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+    IModelClient model = options.Backend switch
+    {
+        ModelBackend.LmStudio => new LmStudioModelClient(new LmStudioOptions(
+            Model: options.Model,
+            Host: host,
+            Temperature: options.Temperature,
+            TopP: options.TopP,
+            Timeout: timeout)),
+        ModelBackend.Ollama => new OllamaModelClient(new OllamaOptions(
+            Model: options.Model,
+            Host: host,
+            Temperature: options.Temperature,
+            TopP: options.TopP,
+            Timeout: timeout)),
+        _ => throw new ArgumentOutOfRangeException(nameof(options.Backend)),
+    };
 
     var agentOptions = new AgentOptions
     {

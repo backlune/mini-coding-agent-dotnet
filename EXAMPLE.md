@@ -17,13 +17,13 @@ The flow is:
 
 This example assumes:
 
-- `ollama serve` is already running
-- you already pulled a model such as `qwen3.5:4b` (e.g., via `ollama pull qwen3.5:4b`)
+- LM Studio is installed, a model is loaded, and its local server is running
+  on `http://127.0.0.1:1234` (Developer tab → Start Server)
 - you cloned this repository and ran `dotnet build` once
 
-If you have sufficient memory, consider using a larger Qwen 3.5 model instead:
-
-- [ollama.com/library/qwen3.5](https://ollama.com/library/qwen3.5)
+If you have sufficient memory, consider using a larger Qwen 3.5 model. If you
+prefer Ollama, run `ollama serve`, `ollama pull qwen3.5:4b`, and append
+`--backend ollama` to the commands below.
 
 &nbsp;
 ## 1. Create a fresh repo
