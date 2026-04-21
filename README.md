@@ -1,228 +1,184 @@
 &nbsp;
-# Mini-Coding-Agent
+# Mini-Coding-Agent (.NET)
 
-This folder contains a small standalone coding agent:
+A minimal, local coding agent implemented in C# / .NET 10. It is a port of the
+original Python reference at [rasbt/mini-coding-agent](https://github.com/rasbt/mini-coding-agent),
+restructured into idiomatic .NET to make it easier for a team to read,
+discuss, and extend.
 
-- code: `mini_coding_agent.py`
-- CLI: `mini-coding-agent`
+The agent still does the same six things:
 
-It is a minimal local agent loop with:
+1. **Live repo context** — collects a workspace snapshot from `git`
+2. **Prompt shape** — builds a stable prefix so the model prompt cache stays warm
+3. **Structured tools** — validated, permissioned operations the model can call
+4. **Context reduction** — trims tool output and transcripts to a budget
+5. **Session memory** — persists transcripts and distilled memory to disk
+6. **Bounded delegation** — spawns a read-only child agent for scoped research
 
-- workspace snapshot collection
-- stable prompt plus turn state
-- structured tools
-- approval handling for risky tools
-- transcript and memory persistence
-- bounded delegation
-
-The model backend is currently based on Ollama.
-
-<img src="https://sebastianraschka.com/images/github/mini-coding-agent/1.webp" width="500px">
-
-<br>
-
-**Stay tuned for a more detailed tutorial to be linked here**
+The model backend is currently [Ollama](https://ollama.com).
 
 &nbsp;
+## Project layout
 
+```
+MiniCodingAgent.slnx
+src/
+  MiniCodingAgent/
+    Program.cs                   # entry point: arg parsing + REPL wiring only
+    AgentConstants.cs            # shared constants (ignored paths, limits, art)
+    Agent/
+      MiniAgent.cs               # orchestrator; ties every component together
+      AgentOptions.cs            # init-only options record
+      PromptBuilder.cs           # component 2 — stable prefix + per-turn prompt
+      HistoryFormatter.cs        # component 4 — transcript shrink / dedupe
+      ResponseParser.cs          # parses <tool>/<final>/retry
+      ParsedResponse.cs
+    Cli/
+      CliArgumentParser.cs       # hand-rolled arg parser (mirrors argparse)
+      CliOptions.cs
+    Models/
+      IModelClient.cs            # single-method abstraction
+      OllamaModelClient.cs       # HttpClient backed /api/generate
+      FakeModelClient.cs         # test double
+    Sessions/
+      Session.cs                 # JSON-persisted session DTO
+      SessionMemory.cs
+      HistoryItem.cs             # one transcript turn (user / assistant / tool)
+      SessionStore.cs            # component 5 — save / load / latest
+    Tools/
+      ITool.cs                   # tool contract
+      ToolRegistry.cs
+      ToolArgs.cs                # JsonObject read helpers
+      WorkspacePathResolver.cs   # path jail, prevents escapes
+      ApprovalPolicy.cs          # ask / auto / never
+      IApprovalHandler.cs
+      ConsoleApprovalHandler.cs
+      ISubAgentRunner.cs         # seam used by DelegateTool
+      Implementations/
+        ListFilesTool.cs
+        ReadFileTool.cs
+        SearchTool.cs
+        RunShellTool.cs
+        WriteFileTool.cs
+        PatchFileTool.cs
+        DelegateTool.cs          # component 6 — bounded sub-agent
+    Ui/
+      WelcomeBanner.cs           # boxed ASCII banner
+      InteractiveRepl.cs         # REPL loop + slash commands
+    Utilities/
+      TextHelpers.cs             # Clip / Middle
+      Clock.cs                   # IClock abstraction
+    Workspace/
+      WorkspaceContext.cs        # component 1 — repo snapshot DTO
+      WorkspaceContextBuilder.cs
+      GitCommandRunner.cs        # thin wrapper around `git`
+tests/
+  MiniCodingAgent.Tests/         # xUnit test suite mirroring the Python tests
+```
+
+Each of the six components has a matching folder or file — the comments from
+the original Python are preserved as XML doc comments near the component that
+owns the responsibility.
+
+&nbsp;
 ## Requirements
 
-You need:
-
-- Python 3.10+
-- Ollama installed
-- an Ollama model pulled locally
-
-Optional:
-
-- `uv` for environment management and the `mini-coding-agent` CLI entry point
-
-This project has no Python runtime dependency beyond the standard library, so you can run it directly with `python mini_coding_agent.py` if you do not want to use `uv`.
+- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- [Ollama](https://ollama.com/download) for the default model backend
 
 &nbsp;
 ## Install Ollama
 
-Install Ollama on your machine so the `ollama` command is available in your shell.
-
-Official installation link: [ollama.com/download](https://ollama.com/download)
-
-Then verify:
-
 ```bash
 ollama --help
-```
-
-Start the server:
-
-```bash
 ollama serve
-```
-
-In another terminal, pull a model. Example:
-
-```bash
 ollama pull qwen3.5:4b
 ```
 
-Qwen 3.5 model library:
-
-- [ollama.com/library/qwen3.5](https://ollama.com/library/qwen3.5)
-
-The default in this project is `qwen3.5:4b`. If you have sufficient memory, it is worth trying a larger model such as `qwen3.5:9b` or another larger Qwen 3.5 variant. The agent just sends prompts to Ollama's `/api/generate` endpoint.
+The default model is `qwen3.5:4b`. Larger Qwen 3.5 variants follow tool
+formatting more reliably.
 
 &nbsp;
-## Project Setup
-
-Clone the repo or your fork and change into it:
+## Build & run
 
 ```bash
-git clone https://github.com/rasbt/mini-coding-agent.git
-cd mini-coding-agent
+dotnet build
+dotnet run --project src/MiniCodingAgent
 ```
 
-If you forked it first, use your fork URL instead:
+Or publish a single executable:
 
 ```bash
-git clone https://github.com/<your-github-user>/mini-coding-agent.git
-cd mini-coding-agent
+dotnet publish src/MiniCodingAgent -c Release -o publish
+./publish/mini-coding-agent        # Linux/macOS
+publish\mini-coding-agent.exe      # Windows
 ```
-
-
 
 &nbsp;
-## Basic Usage
-
-Start the agent:
-
-```bash
-cd mini-coding-agent
-uv run mini-coding-agent
-```
-
-Without `uv`, run the script directly:
-
-```bash
-cd mini-coding-agent
-python mini_coding_agent.py
-```
-
-By default it uses:
-
-- model: `qwen3.5:4b`
-- approval: `ask`
-
-For a concrete usage example, see [EXAMPLE.md](EXAMPLE.md).
-
-&nbsp;
-## Approval Modes
-
-Risky tools such as shell commands and file writes are gated by approval.
-
-- `--approval ask`
-  prompts before risky actions (default and recommended)
-- `--approval auto`
-  allows risky actions automatically (convenient but riskier)
-- `--approval never`
-  denies risky actions
-
-Example:
-
-```bash
-uv run mini-coding-agent --approval auto
-```
-
-
-
-&nbsp;
-## Resume Sessions
-
-The agent saves sessions under the target workspace root in:
+## CLI flags
 
 ```text
-.mini-coding-agent/sessions/
+mini-coding-agent [prompt...] [options]
+
+  --cwd <dir>              Workspace directory (default: .)
+  --model <name>           Ollama model name (default: qwen3.5:4b)
+  --host <url>             Ollama server URL (default: http://127.0.0.1:11434)
+  --ollama-timeout <secs>  Ollama request timeout (default: 300)
+  --resume <id|latest>     Resume a saved session (default: start new session)
+  --approval <mode>        Approval policy: ask, auto, never (default: ask)
+  --max-steps <n>          Maximum tool/model iterations per request (default: 6)
+  --max-new-tokens <n>     Maximum model output tokens per step (default: 512)
+  --temperature <val>      Sampling temperature (default: 0.2)
+  --top-p <val>            Top-p sampling value (default: 0.9)
+  -h, --help               Show this help message.
 ```
-
-Resume the latest session:
-
-```bash
-uv run mini-coding-agent --resume latest
-```
-
-
-Resume a specific session:
-
-```bash
-uv run mini-coding-agent --resume 20260401-144025-2dd0aa
-```
-
 
 &nbsp;
-## Interactive Commands
+## Approval modes
 
-Inside the REPL, slash commands are handled directly by the agent instead of
-being sent to the model as a normal task.
+Risky tools (`write_file`, `patch_file`, `run_shell`) are gated by approval.
 
-- `/help`
-  shows the list of available interactive commands
-- `/memory`
-  prints the distilled session memory, including the current task, tracked files, and notes
-- `/session`
-  prints the path to the current saved session JSON file
-- `/reset`
-  clears the current session history and distilled memory but keeps you in the REPL
-- `/exit`
-  exits the interactive session
-- `/quit`
-  exits the interactive session; alias for `/exit`
+- `--approval ask` — prompts before each risky action (default)
+- `--approval auto` — allows risky actions automatically
+- `--approval never` — denies risky actions (used by delegated sub-agents)
 
 &nbsp;
-## Main CLI Flags
+## Resume sessions
+
+Sessions live under `.mini-coding-agent/sessions/` in the workspace root.
 
 ```bash
-uv run mini-coding-agent --help
+dotnet run --project src/MiniCodingAgent -- --resume latest
+dotnet run --project src/MiniCodingAgent -- --resume 20260421-104025-2dd0aa
 ```
 
-Without `uv`:
+&nbsp;
+## Interactive commands
+
+Inside the REPL, slash commands are handled locally and not sent to the model:
+
+- `/help` — show slash commands
+- `/memory` — print distilled session memory
+- `/session` — print the session file path
+- `/reset` — clear session history and memory
+- `/exit` / `/quit` — leave the REPL
+
+&nbsp;
+## Tests
 
 ```bash
-python mini_coding_agent.py --help
+dotnet test
 ```
 
-CLI flags are passed before the agent starts. Use them to choose the workspace,
-model connection, resume behavior, approval mode, and generation limits.
-
-Important flags:
-
-- `--cwd`
-  sets the workspace directory the agent should inspect and modify; default: `.`
-- `--model`
-  selects the Ollama model name, such as `qwen3.5:4b`; default: `qwen3.5:4b`
-- `--host`
-  points the agent at the Ollama server URL (usually not needed); default: `http://127.0.0.1:11434`
-- `--ollama-timeout`
-  controls how long the client waits for an Ollama response (usually not needed); default: `300` seconds
-- `--resume`
-  resumes a saved session by id or uses `latest`; default: start a new session
-- `--approval`
-  controls how risky tools are handled: `ask`, `auto`, or `never`; default: `ask`
-- `--max-steps`
-  limits how many model and tool turns are allowed for one user request; default: `6`
-- `--max-new-tokens`
-  caps the model output length for each step; default: `512`
-- `--temperature`
-  controls sampling randomness; default: `0.2`
-- `--top-p`
-  controls nucleus sampling for generation; default: `0.9`
+The xUnit suite covers agent flow, tool validation, delegation, welcome
+banner shape, and the Ollama HTTP contract.
 
 &nbsp;
-## Example
+## Notes
 
-See [EXAMPLE.md](EXAMPLE.md)
-
-&nbsp;
-## Notes & Tips
-
-- The agent expects the model to emit either `<tool>...</tool>` or `<final>...</final>`.
-- Different Ollama models will follow those instructions with different reliability.
-- If the model does not follow the format well, use a stronger instruction-following model.
-- The agent is intentionally small and optimized for readability, not robustness.
+- The agent expects the model to emit either `<tool>...</tool>` or
+  `<final>...</final>`. Weaker models may need tighter prompting.
+- The agent is intentionally small and optimised for readability.
+- The original Python reference is preserved at
+  [rasbt/mini-coding-agent](https://github.com/rasbt/mini-coding-agent); this
+  repository is the .NET port.

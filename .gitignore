@@ -1,35 +1,31 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
+# .NET build output
+bin/
+obj/
+*.user
+*.suo
+.vs/
 
-# Virtual environments
-.venv/
-venv/
-uv.lock
+# Rider
+.idea/
 
-# Packaging
-*.egg-info/
-build/
-dist/
+# VS Code
+.vscode/
+*.code-workspace
 
-# Test and lint caches
-.pytest_cache/
-.ruff_cache/
-.coverage
-htmlcov/
+# Published artifacts
+publish/
 
-# Temporary files
-.mini-coding-agent
+# Agent session storage
+.mini-coding-agent/
+
+# Temporary scratch space
+tmp/
 *.tmp
 *.temp
 *.swp
 *.swo
 *~
 
-# Local scratch space
-tmp/
-
 # OS files
 .DS_Store
+Thumbs.db
