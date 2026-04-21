@@ -3,8 +3,7 @@
 
 A minimal, local coding agent implemented in C# / .NET 10. It is a port of the
 original Python reference at [rasbt/mini-coding-agent](https://github.com/rasbt/mini-coding-agent),
-restructured into idiomatic .NET to make it easier for a team to read,
-discuss, and extend.
+restructured into idiomatic .NET to make it easier developers more familiar with .NET to get faimiliar with coding agents.
 
 The agent still does the same six things:
 
