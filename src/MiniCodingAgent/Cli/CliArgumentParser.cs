@@ -54,13 +54,14 @@ public static class CliArgumentParser
     }
 
     public static string HelpText() =>
-        "Minimal coding agent for Ollama models.\n\n" +
+        "Minimal coding agent for local LLM backends.\n\n" +
         "usage: mini-coding-agent [prompt...] [options]\n\n" +
         "options:\n" +
         "  --cwd <dir>              Workspace directory (default: .)\n" +
-        "  --model <name>           Ollama model name (default: qwen3.5:4b)\n" +
-        "  --host <url>             Ollama server URL (default: http://127.0.0.1:11434)\n" +
-        "  --ollama-timeout <secs>  Ollama request timeout (default: 300)\n" +
+        "  --backend <name>         Model backend: lmstudio, ollama (default: lmstudio)\n" +
+        "  --model <name>           Model name (default: qwen3.5:4b)\n" +
+        "  --host <url>             Server URL (default: lmstudio=http://127.0.0.1:1234, ollama=http://127.0.0.1:11434)\n" +
+        "  --timeout <secs>         Request timeout in seconds (default: 300)\n" +
         "  --resume <id|latest>     Resume a saved session (default: start new session)\n" +
         "  --approval <mode>        Approval policy: ask, auto, never (default: ask)\n" +
         "  --max-steps <n>          Maximum tool/model iterations per request (default: 6)\n" +
@@ -76,14 +77,22 @@ public static class CliArgumentParser
             case "cwd":
                 options.Cwd = RequireValue(key, value);
                 break;
+            case "backend":
+                if (!ModelBackendExtensions.TryParse(value, out var backend))
+                {
+                    throw new ArgumentException($"--backend must be one of: lmstudio, ollama (got '{value}')");
+                }
+                options.Backend = backend;
+                break;
             case "model":
                 options.Model = RequireValue(key, value);
                 break;
             case "host":
                 options.Host = RequireValue(key, value);
                 break;
+            case "timeout":
             case "ollama-timeout":
-                options.OllamaTimeoutSeconds = ParseInt(key, value);
+                options.TimeoutSeconds = ParseInt("timeout", value);
                 break;
             case "resume":
                 options.Resume = RequireValue(key, value);

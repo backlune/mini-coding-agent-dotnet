@@ -14,7 +14,7 @@ The agent still does the same six things:
 5. **Session memory** — persists transcripts and distilled memory to disk
 6. **Bounded delegation** — spawns a read-only child agent for scoped research
 
-The model backend is currently [Ollama](https://ollama.com).
+The default model backend is [LM Studio](https://lmstudio.ai) via its OpenAI-compatible local server. [Ollama](https://ollama.com) is supported as an alternative via `--backend ollama`.
 
 &nbsp;
 ## Project layout
@@ -37,6 +37,7 @@ src/
       CliOptions.cs
     Models/
       IModelClient.cs            # single-method abstraction
+      LmStudioModelClient.cs     # HttpClient backed OpenAI /v1/chat/completions
       OllamaModelClient.cs       # HttpClient backed /api/generate
       FakeModelClient.cs         # test double
     Sessions/
@@ -83,10 +84,22 @@ owns the responsibility.
 ## Requirements
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- [Ollama](https://ollama.com/download) for the default model backend
+- [LM Studio](https://lmstudio.ai/download) (default backend) **or** [Ollama](https://ollama.com/download)
 
 &nbsp;
-## Install Ollama
+## Set up LM Studio (default)
+
+1. Install [LM Studio](https://lmstudio.ai/download).
+2. Download a model that follows instructions well (e.g. a Qwen 3.5 variant).
+3. Open the **Developer** tab and **Start Server** — the default base URL is
+   `http://127.0.0.1:1234`.
+4. Load the model you downloaded so requests can be served.
+
+Pass the loaded model's identifier with `--model`. Larger Qwen 3.5 variants
+follow the `<tool>` / `<final>` formatting more reliably.
+
+&nbsp;
+## Set up Ollama (alternative)
 
 ```bash
 ollama --help
@@ -94,8 +107,7 @@ ollama serve
 ollama pull qwen3.5:4b
 ```
 
-The default model is `qwen3.5:4b`. Larger Qwen 3.5 variants follow tool
-formatting more reliably.
+Then run the agent with `--backend ollama`.
 
 &nbsp;
 ## Build & run
@@ -120,9 +132,11 @@ publish\mini-coding-agent.exe      # Windows
 mini-coding-agent [prompt...] [options]
 
   --cwd <dir>              Workspace directory (default: .)
-  --model <name>           Ollama model name (default: qwen3.5:4b)
-  --host <url>             Ollama server URL (default: http://127.0.0.1:11434)
-  --ollama-timeout <secs>  Ollama request timeout (default: 300)
+  --backend <name>         Model backend: lmstudio, ollama (default: lmstudio)
+  --model <name>           Model name (default: qwen3.5:4b)
+  --host <url>             Server URL (default: lmstudio=http://127.0.0.1:1234,
+                                              ollama=http://127.0.0.1:11434)
+  --timeout <secs>         Request timeout in seconds (default: 300)
   --resume <id|latest>     Resume a saved session (default: start new session)
   --approval <mode>        Approval policy: ask, auto, never (default: ask)
   --max-steps <n>          Maximum tool/model iterations per request (default: 6)
@@ -170,7 +184,7 @@ dotnet test
 ```
 
 The xUnit suite covers agent flow, tool validation, delegation, welcome
-banner shape, and the Ollama HTTP contract.
+banner shape, and the LM Studio and Ollama HTTP contracts.
 
 &nbsp;
 ## Notes
